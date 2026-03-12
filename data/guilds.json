@@ -1,0 +1,38 @@
+{
+  "_god": 698918730922721281,
+  "bananza_not_allowed": 216181937708990464,
+  "1212060831953715240": {
+    "server_name": "dattebayo",
+    "roles": {
+      "unverif_role": 1480593712034873549,
+      "verif_role": 1480595315705778348
+    },
+    "messages": {
+      "react_verif_message_id": 1480569581054595134
+    },
+    "channels": {
+      "fun_channel": 1480591799797158200,
+      "private_category": 1481348206242693326,
+      "private_text_channel": 1481348725786804224,
+      "private_voice_channel": 1481348538410729513
+    }
+  },
+  "944556228430946324": {
+    "server_name": "pelmenaya",
+    "channels": {
+      "fun_channel": 1481046764306956470,
+      "private_category": 1481360770078998648,
+      "private_text_channel": 1481360828744732672,
+      "private_voice_channel": 1481360860516454531
+    }
+  },
+  "1395509144391258312": {
+    "server_name": "okulka_mur",
+    "channels": {
+      "fun_channel": 1481451765063745637,
+      "private_category": 1481451845506306139,
+      "private_text_channel": 1481451901202731099,
+      "private_voice_channel": 1481451946463465595
+    }
+  }
+}
