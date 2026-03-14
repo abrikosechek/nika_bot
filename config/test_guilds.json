@@ -1,0 +1,19 @@
+{
+  "_god": 698918730922721281,
+  "1303975959472635944": {
+    "server_name": "test_bot",
+    "verification": {
+      "unverif_role": 1482434380575277086,
+      "verif_role": 1482434539094675579,
+      "react_message_id": 1482436308856213634
+    },
+    "fun": {
+      "channel": 1303975959472635947
+    },
+    "private_channels": {
+      "category": 1481821262794854532,
+      "text_channel": 1481821296181383404,
+      "voice_channel": 1481821335997911073
+    }
+  }
+}
