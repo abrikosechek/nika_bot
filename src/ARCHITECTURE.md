@@ -78,50 +78,63 @@ src/
 Структура guilds.json
 =====================
 
+Глобальные настройки:
+- _god: ID god пользователя (глобальный, один для всех серверов)
+- bananza_not_allowed: ID пользователя, которому запрещено использовать /bananza
+
+Настройки сервера (по модулям):
+
 {
   "_god": GOD_USER_ID,
   "bananza_not_allowed": USER_ID,
   "SERVER_ID": {
     "server_name": "server_name",
-    "roles": {
+    "verification": {
       "unverif_role": ROLE_ID,
-      "verif_role": ROLE_ID
+      "verif_role": ROLE_ID,
+      "react_message_id": MESSAGE_ID
     },
-    "messages": {
-      "react_verif_message_id": MESSAGE_ID
+    "fun": {
+      "channel": CHANNEL_ID
     },
-    "channels": {
-      "fun_channel": CHANNEL_ID,
-      "private_category": CATEGORY_ID,
-      "private_text_channel": TEXT_CHANNEL_ID,
-      "private_voice_channel": VOICE_CHANNEL_ID
+    "private_channels": {
+      "category": CATEGORY_ID,
+      "text_channel": CHANNEL_ID,
+      "voice_channel": CHANNEL_ID
     }
   }
 }
 
-Поля:
-- _god: ID god пользователя (глобальный, один для всех серверов)
-- bananza_not_allowed: ID пользователя, которому запрещено использовать /bananza
-- SERVER_ID.server_name: название сервера
-- SERVER_ID.roles.unverif_role: роль для новых участников
-- SERVER_ID.roles.verif_role: роль после верификации
-- SERVER_ID.messages.react_verif_message_id: сообщение для реакции верификации
-- SERVER_ID.channels.fun_channel: канал для команды /roll
-- SERVER_ID.channels.private_category: категория для приватных каналов
-- SERVER_ID.channels.private_text_channel: текстовый канал управления (шестерёнка)
-- SERVER_ID.channels.private_voice_channel: голосовой канал создания (плюсик)
+Поля модулей:
+
+**verification** (модуль VerificationModule):
+- unverif_role: роль для новых участников
+- verif_role: роль после верификации
+- react_message_id: сообщение для реакции верификации
+
+**fun** (модуль RollModule):
+- channel: канал для команды /roll
+
+**private_channels** (модуль PrivateModule):
+- category: категория для приватных каналов
+- text_channel: текстовый канал для команд управления
+- voice_channel: голосовой канал создания (плюсик)
+
+Тестовый режим:
+- Если в .env IS_TEST=true, используется config/test_guilds.json
+- Если IS_TEST=false (по умолчанию), используется config/guilds.json
 
 Команды модуля god
 ==================
 
-God пользователь настраивается только через файл data/guilds.json (поле _god).
+God пользователь настраивается только через файл config/guilds.json (поле _god).
 Бот следует за god пользователем по всем голосовым каналам на всех серверах.
 
 
 Команды модуля private_channels
 ===============================
 
-Настройка только через data/guilds.json (вручную):
+Настройка только через config/guilds.json (вручную):
 
 {
   "SERVER_ID": {

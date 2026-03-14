@@ -1,12 +1,23 @@
+import asyncio
 import os
+import signal
+import sys
 import logging
 
 import discord
+from discord import LoginFailure
 from discord.ext import commands
 from dotenv import load_dotenv
 
 from src.core import Module
 from src.modules import ALL_MODULES
+from src.utils.config import config
+from src.utils.checks import ChannelCheckError
+from src.utils.db import db
+
+# Включаем UTF-8 для Windows console
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # Настройка логирования
 logging.basicConfig(
@@ -17,6 +28,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+# Перезагружаем кэш конфигурации после загрузки .env
+config.reload()
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -60,15 +74,19 @@ async def load_modules() -> None:
 async def on_ready():
     print(f'Бот готов! {bot.user}')
     print(f'Подключён к {len(bot.guilds)} серверам')
-    
+
+    # Подключение к базе данных
+    await db.connect()
+    print('🗄️ База данных подключена')
+
     # Загрузка модулей
     if not _loaded_modules:
         await load_modules()
-    
+
     # Синхронизация slash-команд
     await bot.tree.sync()
     print('Slash-команды синхронизированы')
-    
+
     # Вызов on_ready для всех модулей
     for module in _loaded_modules:
         await module.on_ready()
@@ -80,7 +98,12 @@ async def on_app_command_error(
     error: discord.app_commands.AppCommandError
 ) -> None:
     """Глобальный обработчик ошибок slash команд"""
-    if isinstance(error, commands.CommandNotFound):
+    if isinstance(error, ChannelCheckError):
+        await interaction.response.send_message(
+            error.message,
+            ephemeral=True
+        )
+    elif isinstance(error, commands.CommandNotFound):
         logger.warning(f'Command not found: {interaction.command_name}')
     elif isinstance(error, commands.MissingPermissions):
         await interaction.response.send_message(
@@ -135,6 +158,15 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 
 
 @bot.event
+async def on_raw_reaction_remove(payload: discord.RawReactionActionEvent):
+    for module in _loaded_modules:
+        try:
+            await module.on_raw_reaction_remove(payload)
+        except Exception as e:
+            logger.error(f'Ошибка в модуле {module.name}.on_raw_reaction_remove: {e}', exc_info=True)
+
+
+@bot.event
 async def on_guild_join(guild: discord.Guild):
     print(f'Добавлен на сервер: {guild.name} (ID: {guild.id})')
     for module in _loaded_modules:
@@ -180,5 +212,40 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError) 
         logger.error(f'Ошибка команды {ctx.command}: {error}', exc_info=error)
 
 
+@bot.event
+async def on_close():
+    """Закрытие подключения к базе данных при остановке бота"""
+    await db.close()
+    logger.info('🗄️ База данных отключена')
+
+
 def run():
-    bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+    """Запуск бота с обработкой Ctrl+C"""
+    token = os.getenv('DISCORD_BOT_TOKEN')
+    if not token:
+        logger.error('❌ Токен бота не найден в .env')
+        return
+    
+    try:
+        bot.run(token)
+    except KeyboardInterrupt:
+        logger.info('🛑 Получен сигнал остановки')
+    except discord.LoginFailure:
+        logger.error('❌ Ошибка авторизации. Проверьте токен в .env')
+    except Exception as e:
+        logger.error(f'❌ Ошибка запуска: {e}')
+    finally:
+        # Закрытие ресурсов в синхронном контексте
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(cleanup())
+        finally:
+            loop.close()
+        logger.info('✅ Бот остановлен')
+
+
+async def cleanup():
+    """Очистка ресурсов при остановке"""
+    await db.close()
+    logger.info('🗄️ База данных отключена')

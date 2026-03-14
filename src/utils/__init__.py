@@ -23,6 +23,12 @@ from src.utils.storage import (
     set_bananza_not_allowed,
     remove_bananza_not_allowed,
 )
+from src.utils.checks import (
+    ChannelCheckError,
+    allowed_channels,
+    check_allowed_channels,
+)
+from src.utils.db import db, Database
 
 __all__ = [
     'config',
@@ -49,4 +55,9 @@ __all__ = [
     'get_bananza_not_allowed',
     'set_bananza_not_allowed',
     'remove_bananza_not_allowed',
+    'ChannelCheckError',
+    'allowed_channels',
+    'check_allowed_channels',
+    'db',
+    'Database',
 ]

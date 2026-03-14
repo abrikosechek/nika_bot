@@ -48,7 +48,11 @@ class Module(ABC):
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         """Вызывается при добавлении реакции (опционально)"""
         pass
-    
+
+    async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent) -> None:
+        """Вызывается при снятии реакции (опционально)"""
+        pass
+
     async def on_voice_state_update(
         self,
         member: discord.Member,

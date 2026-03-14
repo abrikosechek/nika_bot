@@ -1,3 +1,14 @@
+"""
+Модуль приватных голосовых каналов с хранением данных в SQLite.
+
+Логика:
+- Категория "Приватные" с текстовым каналом "шестерёнка управление"
+  и голосовым "плюсик создать"
+- Пользователь заходит в "создать" → создаётся канал с его ником
+- Если все вышли → канал удаляется
+- У пользователя только один канал одновременно
+"""
+
 import logging
 
 import discord
@@ -7,32 +18,27 @@ from discord.ext import commands
 from src.core import Module
 from src.utils.storage import (
     get_private_category,
+    get_private_text_channel,
     get_private_voice_channel,
 )
+from src.utils.checks import check_allowed_channels
+from src.utils.db import db
+from src.utils.db_schema import SCHEMA
 
 logger = logging.getLogger(__name__)
 
-# Хранилище активных приватных каналов: {channel_id: {owner_id, owner, locked}}
-_private_channels: dict[int, dict[str, int | discord.Member | bool]] = {}
-
 
 class PrivateModule(Module):
-    """
-    Модуль приватных голосовых каналов.
-
-    Логика:
-    - Категория "Приватные" с текстовым каналом "шестерёнка управление"
-      и голосовым "плюсик создать"
-    - Пользователь заходит в "создать" → создаётся канал с его ником
-    - Если все вышли → канал удаляется
-    - У пользователя только один канал одновременно
-    """
+    """Модуль приватных голосовых каналов"""
 
     name = "private_channels"
     description = "Система приватных голосовых каналов"
 
     async def setup(self) -> None:
         """Инициализация модуля"""
+        # Создаём таблицу в БД
+        await db.create_tables(SCHEMA)
+        logger.info('📁 PrivateModule: таблица БД создана')
 
         @self.bot.tree.command(name='close', description='🚫 Закрыть свой приватный канал')
         async def close(interaction: discord.Interaction):
@@ -44,10 +50,24 @@ class PrivateModule(Module):
                 )
                 return
 
-            # Находим канал пользователя на этом сервере
-            user_channel = self._get_user_channel(interaction.user.id, interaction.guild.id)
+            # Проверяем, что команда вызвана в private_text канале
+            private_text_id = get_private_text_channel(interaction.guild.id)
+            if not private_text_id:
+                await interaction.response.send_message(
+                    '❌ На этом сервере не настроен канал управления.',
+                    ephemeral=True
+                )
+                return
 
-            if not user_channel:
+            await check_allowed_channels(interaction, private_text_id)
+
+            # Находим канал пользователя в БД
+            channel_data = await db.fetch_one(
+                'SELECT channel_id, user_id, locked FROM private_channels WHERE user_id = ? AND guild_id = ?',
+                (interaction.user.id, interaction.guild.id)
+            )
+
+            if not channel_data:
                 await interaction.response.send_message(
                     '❌ У вас нет приватного канала.',
                     ephemeral=True
@@ -55,10 +75,18 @@ class PrivateModule(Module):
                 return
 
             # Проверяем, владелец ли
-            channel_data = _private_channels.get(user_channel.id)
-            if not channel_data or channel_data.get('owner_id') != interaction.user.id:
+            if channel_data['user_id'] != interaction.user.id:
                 await interaction.response.send_message(
                     '❌ Вы не владелец этого канала.',
+                    ephemeral=True
+                )
+                return
+
+            # Получаем объект канала
+            user_channel = interaction.guild.get_channel(channel_data['channel_id'])
+            if not user_channel:
+                await interaction.response.send_message(
+                    '❌ Канал не найден.',
                     ephemeral=True
                 )
                 return
@@ -94,10 +122,24 @@ class PrivateModule(Module):
                 )
                 return
 
-            # Находим канал пользователя на этом сервере
-            user_channel = self._get_user_channel(interaction.user.id, interaction.guild.id)
+            # Проверяем, что команда вызвана в private_text канале
+            private_text_id = get_private_text_channel(interaction.guild.id)
+            if not private_text_id:
+                await interaction.response.send_message(
+                    '❌ На этом сервере не настроен канал управления.',
+                    ephemeral=True
+                )
+                return
 
-            if not user_channel:
+            await check_allowed_channels(interaction, private_text_id)
+
+            # Находим канал пользователя в БД
+            channel_data = await db.fetch_one(
+                'SELECT channel_id, user_id, locked FROM private_channels WHERE user_id = ? AND guild_id = ?',
+                (interaction.user.id, interaction.guild.id)
+            )
+
+            if not channel_data:
                 await interaction.response.send_message(
                     '❌ У вас нет приватного канала.',
                     ephemeral=True
@@ -105,8 +147,7 @@ class PrivateModule(Module):
                 return
 
             # Проверяем, владелец ли
-            channel_data = _private_channels.get(user_channel.id)
-            if not channel_data or channel_data.get('owner_id') != interaction.user.id:
+            if channel_data['user_id'] != interaction.user.id:
                 await interaction.response.send_message(
                     '❌ Вы не владелец этого канала.',
                     ephemeral=True
@@ -114,9 +155,18 @@ class PrivateModule(Module):
                 return
 
             # Проверяем, не заблокирован ли уже
-            if channel_data.get('locked', False):
+            if channel_data['locked']:
                 await interaction.response.send_message(
                     '🔒 Канал уже заблокирован.',
+                    ephemeral=True
+                )
+                return
+
+            # Получаем объект канала
+            user_channel = interaction.guild.get_channel(channel_data['channel_id'])
+            if not user_channel:
+                await interaction.response.send_message(
+                    '❌ Канал не найден.',
                     ephemeral=True
                 )
                 return
@@ -132,8 +182,11 @@ class PrivateModule(Module):
                     reason='Канал заблоки владельцем'
                 )
 
-                # Обновляем хранилище
-                _private_channels[user_channel.id]['locked'] = True
+                # Обновляем БД
+                await db.execute(
+                    'UPDATE private_channels SET locked = 1 WHERE channel_id = ?',
+                    (channel_data['channel_id'],)
+                )
 
                 # Меняем название канала
                 old_name = user_channel.name
@@ -174,10 +227,24 @@ class PrivateModule(Module):
                 )
                 return
 
-            # Находим канал пользователя на этом сервере
-            user_channel = self._get_user_channel(interaction.user.id, interaction.guild.id)
+            # Проверяем, что команда вызвана в private_text канале
+            private_text_id = get_private_text_channel(interaction.guild.id)
+            if not private_text_id:
+                await interaction.response.send_message(
+                    '❌ На этом сервере не настроен канал управления.',
+                    ephemeral=True
+                )
+                return
 
-            if not user_channel:
+            await check_allowed_channels(interaction, private_text_id)
+
+            # Находим канал пользователя в БД
+            channel_data = await db.fetch_one(
+                'SELECT channel_id, user_id, locked FROM private_channels WHERE user_id = ? AND guild_id = ?',
+                (interaction.user.id, interaction.guild.id)
+            )
+
+            if not channel_data:
                 await interaction.response.send_message(
                     '❌ У вас нет приватного канала.',
                     ephemeral=True
@@ -185,8 +252,7 @@ class PrivateModule(Module):
                 return
 
             # Проверяем, владелец ли
-            channel_data = _private_channels.get(user_channel.id)
-            if not channel_data or channel_data.get('owner_id') != interaction.user.id:
+            if channel_data['user_id'] != interaction.user.id:
                 await interaction.response.send_message(
                     '❌ Вы не владелец этого канала.',
                     ephemeral=True
@@ -194,9 +260,18 @@ class PrivateModule(Module):
                 return
 
             # Проверяем, не разблокирован ли уже
-            if not channel_data.get('locked', False):
+            if not channel_data['locked']:
                 await interaction.response.send_message(
                     '🔓 Канал уже разблокирован.',
+                    ephemeral=True
+                )
+                return
+
+            # Получаем объект канала
+            user_channel = interaction.guild.get_channel(channel_data['channel_id'])
+            if not user_channel:
+                await interaction.response.send_message(
+                    '❌ Канал не найден.',
                     ephemeral=True
                 )
                 return
@@ -212,8 +287,11 @@ class PrivateModule(Module):
                     reason='Канал разблокирован владельцем'
                 )
 
-                # Обновляем хранилище
-                _private_channels[user_channel.id]['locked'] = False
+                # Обновляем БД
+                await db.execute(
+                    'UPDATE private_channels SET locked = 0 WHERE channel_id = ?',
+                    (channel_data['channel_id'],)
+                )
 
                 # Меняем название канала
                 old_name = user_channel.name
@@ -246,6 +324,40 @@ class PrivateModule(Module):
 
         logger.info('📁 PrivateModule: инициализирован')
 
+    async def on_ready(self) -> None:
+        """Восстановление состояния приватных каналов после перезапуска"""
+        # Загружаем все активные каналы из БД
+        channels = await db.fetch_all('SELECT channel_id, user_id, guild_id, locked FROM private_channels')
+
+        for channel_data in channels:
+            channel_id = channel_data['channel_id']
+            channel = self.bot.get_channel(channel_id)
+
+            # Если канал больше не существует — удаляем из БД
+            if not channel:
+                await db.execute(
+                    'DELETE FROM private_channels WHERE channel_id = ?',
+                    (channel_id,)
+                )
+                continue
+
+            # Проверяем, есть ли участники в канале
+            if len(channel.members) == 0:
+                # Пустой канал — удаляем из БД и Discord
+                try:
+                    await channel.delete(reason='Приватный канал пуст после перезапуска')
+                    await db.execute(
+                        'DELETE FROM private_channels WHERE channel_id = ?',
+                        (channel_id,)
+                    )
+                    logger.info(f'🗑️ Удалён пустой канал {channel.name} после перезапуска')
+                except discord.Forbidden:
+                    logger.warning(f'⚠️ Нет прав для удаления канала {channel.name}')
+                except discord.HTTPException as e:
+                    logger.error(f'❌ Ошибка удаления канала: {e}')
+
+        logger.info(f'🔄 PrivateModule: проверено {len(channels)} каналов после перезапуска')
+
     async def on_voice_state_update(
         self,
         member: discord.Member,
@@ -266,8 +378,8 @@ class PrivateModule(Module):
         if after.channel and after.channel.id == create_channel_id:
             await self._handle_join_create(member, guild_id, category_id)
 
-        # Пользователь вышел из канала
-        if before.channel and before.channel.id in _private_channels:
+        # Пользователь вышел из приватного канала
+        if before.channel:
             await self._handle_leave_private(member, before.channel)
 
     async def _handle_join_create(
@@ -277,21 +389,31 @@ class PrivateModule(Module):
         category_id: int
     ) -> None:
         """Обработка захода в канал создания"""
-        # Проверяем, есть ли уже канал у пользователя на этом сервере
-        existing_channel = self._get_user_channel(member.id, guild_id)
+        # Проверяем, есть ли уже канал у пользователя в БД
+        existing = await db.fetch_one(
+            'SELECT channel_id FROM private_channels WHERE user_id = ? AND guild_id = ?',
+            (member.id, guild_id)
+        )
 
-        if existing_channel:
-            # Перемещаем в существующий канал
-            try:
-                await member.move_to(existing_channel)
-                logger.debug(
-                    f'🔁 {member.name} перемещён в свой канал {existing_channel.name}'
+        if existing:
+            # Проверяем, существует ли канал
+            existing_channel = member.guild.get_channel(existing['channel_id'])
+            if existing_channel:
+                # Перемещаем в существующий канал
+                try:
+                    await member.move_to(existing_channel)
+                    logger.debug(f'🔁 {member.name} перемещён в свой канал {existing_channel.name}')
+                except discord.Forbidden:
+                    logger.warning(f'❌ Нет прав для перемещения {member.name}')
+                except discord.HTTPException as e:
+                    logger.error(f'❌ Ошибка перемещения: {e}')
+                return
+            else:
+                # Канал не найден — удаляем запись из БД
+                await db.execute(
+                    'DELETE FROM private_channels WHERE channel_id = ?',
+                    (existing['channel_id'],)
                 )
-            except discord.Forbidden:
-                logger.warning(f'❌ Нет прав для перемещения {member.name}')
-            except discord.HTTPException as e:
-                logger.error(f'❌ Ошибка перемещения: {e}')
-            return
 
         # Создаём новый канал
         category = member.guild.get_channel(category_id)
@@ -308,12 +430,11 @@ class PrivateModule(Module):
                 user_limit=20
             )
 
-            # Добавляем в хранилище
-            _private_channels[new_channel.id] = {
-                'owner_id': member.id,
-                'owner': member,
-                'locked': False
-            }
+            # Сохраняем в БД
+            await db.execute(
+                'INSERT INTO private_channels (channel_id, user_id, guild_id, locked) VALUES (?, ?, ?, 0)',
+                (new_channel.id, member.id, guild_id)
+            )
 
             # Перемещаем пользователя в новый канал
             await member.move_to(new_channel)
@@ -332,7 +453,13 @@ class PrivateModule(Module):
         channel: discord.VoiceChannel
     ) -> None:
         """Обработка выхода из приватного канала"""
-        if channel.id not in _private_channels:
+        # Проверяем, приватный ли это канал
+        channel_data = await db.fetch_one(
+            'SELECT user_id FROM private_channels WHERE channel_id = ?',
+            (channel.id,)
+        )
+
+        if not channel_data:
             return
 
         # Проверяем, остался ли кто-то в канале
@@ -346,22 +473,11 @@ class PrivateModule(Module):
             except discord.HTTPException as e:
                 logger.error(f'❌ Ошибка удаления канала: {e}')
             finally:
-                # Удаляем из хранилища
-                if channel.id in _private_channels:
-                    del _private_channels[channel.id]
-
-    def _get_user_channel(self, user_id: int, guild_id: int) -> discord.VoiceChannel | None:
-        """Получить приватный канал пользователя на указанном сервере"""
-        for channel_id, data in _private_channels.items():
-            if data.get('owner_id') == user_id:
-                # Находим канал в боте
-                for guild in self.bot.guilds:
-                    if guild.id != guild_id:
-                        continue
-                    channel = guild.get_channel(channel_id)
-                    if channel and isinstance(channel, discord.VoiceChannel):
-                        return channel
-        return None
+                # Удаляем из БД
+                await db.execute(
+                    'DELETE FROM private_channels WHERE channel_id = ?',
+                    (channel.id,)
+                )
 
     async def on_guild_join(self, guild: discord.Guild) -> None:
         """Лог при входе на сервер"""
@@ -369,12 +485,9 @@ class PrivateModule(Module):
 
     async def on_guild_remove(self, guild: discord.Guild) -> None:
         """Очистка при выходе с сервера"""
-        # Удаляем все каналы этого сервера из хранилища
-        channels_to_remove = [
-            ch_id for ch_id in list(_private_channels.keys())
-            if self.bot.get_channel(ch_id) and
-            self.bot.get_channel(ch_id).guild.id == guild.id
-        ]
-        for ch_id in channels_to_remove:
-            del _private_channels[ch_id]
+        # Удаляем все каналы этого сервера из БД
+        await db.execute(
+            'DELETE FROM private_channels WHERE guild_id = ?',
+            (guild.id,)
+        )
         logger.info(f'📁 PrivateModule удалён с сервера {guild.name}')

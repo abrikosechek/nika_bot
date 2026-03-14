@@ -3,3 +3,10 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Config
+config/guilds.json
+config/test_guilds.json
+
+# Database
+db/

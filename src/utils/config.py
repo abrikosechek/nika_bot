@@ -5,18 +5,28 @@
 """
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Optional
 
-DATA_FILE = 'data/guilds.json'
+DATA_FILE = 'config/guilds.json'  # По умолчанию
+TEST_DATA_FILE = 'config/test_guilds.json'
+
+
+def _get_data_file() -> str:
+    """Получить путь к файлу данных в зависимости от IS_TEST"""
+    is_test = os.getenv('IS_TEST', 'false').lower() == 'true'
+    return TEST_DATA_FILE if is_test else DATA_FILE
 
 
 class ConfigCache:
     """
     Кэш конфигурации бота.
+
+    Загружает guilds.json (или test_guilds.json) один раз при старте
+    и хранит в памяти. При необходимости можно перезагрузить через reload().
     
-    Загружает guilds.json один раз при старте и хранит в памяти.
-    При необходимости можно перезагрузить через reload().
+    Если IS_TEST=true в .env, используется data/test_guilds.json
     """
     
     def __init__(self):
@@ -25,7 +35,7 @@ class ConfigCache:
     
     def reload(self) -> None:
         """Перезагрузить данные из файла"""
-        path = Path(DATA_FILE)
+        path = Path(_get_data_file())
         if path.exists():
             with open(path, 'r', encoding='utf-8') as f:
                 self._data = json.load(f)
@@ -94,7 +104,7 @@ class ConfigCache:
     
     def _save(self) -> None:
         """Сохранить данные в файл"""
-        path = Path(DATA_FILE)
+        path = Path(_get_data_file())
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, 'w', encoding='utf-8') as f:
             json.dump(self._data, f, indent=2, ensure_ascii=False)
@@ -102,3 +112,8 @@ class ConfigCache:
 
 # Глобальный экземпляр кэша
 config = ConfigCache()
+
+
+def is_test_mode() -> bool:
+    """Проверить, включён ли тестовый режим"""
+    return os.getenv('IS_TEST', 'false').lower() == 'true'
