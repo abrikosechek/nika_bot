@@ -1,42 +1,58 @@
 {
-  "_god": 698918730922721281,
-  "bananza_not_allowed": 216181937708990464,
+  "1303975959472635944": {
+    "server_name": "test_server",
+    "fun": {
+      "text_channel": 1303975959472635947
+    },
+    "private": {
+      "control_text_channel": 1481821296181383404,
+      "create_voice_channel": 1481821335997911073,
+      "rooms_category": 1481821262794854532
+    },
+    "verification": {
+      "message_id": 1482436308856213634,
+      "verified_role_id": 1482434539094675579,
+      "unverified_role_id": 1482434380575277086
+    }
+  },
   "1212060831953715240": {
     "server_name": "dattebayo",
-    "verification": {
-      "unverif_role": 1480593712034873549,
-      "verif_role": 1480595315705778348,
-      "react_message_id": 1480569581054595134
-    },
     "fun": {
-      "channel": 1480591799797158200
+      "text_channel": 1480591799797158200
     },
-    "private_channels": {
-      "category": 1481348206242693326,
-      "text_channel": 1481348725786804224,
-      "voice_channel": 1481348538410729513
+    "private": {
+      "control_text_channel": 1481348725786804224,
+      "create_voice_channel": 1481348538410729513,
+      "rooms_category": 1481348206242693326
+    },
+    "verification": {
+      "message_id": 1480569581054595134,
+      "verified_role_id": 1480595315705778348,
+      "unverified_role_id": 1480593712034873549
     }
   },
   "944556228430946324": {
     "server_name": "pelmenaya",
     "fun": {
-      "channel": 1481046764306956470
+      "text_channel": 1481046764306956470
     },
-    "private_channels": {
-      "category": 1481360770078998648,
-      "text_channel": 1481360828744732672,
-      "voice_channel": 1481360860516454531
+    "private": {
+      "control_text_channel": 1481360828744732672,
+      "create_voice_channel": 1481360860516454531,
+      "rooms_category": 1481360770078998648
     }
   },
   "1395509144391258312": {
     "server_name": "okulka_mur",
     "fun": {
-      "channel": 1481451765063745637
+      "text_channel": 1481451765063745637
     },
-    "private_channels": {
-      "category": 1481451845506306139,
-      "text_channel": 1481451901202731099,
-      "voice_channel": 1481451946463465595
+    "private": {
+      "control_text_channel": 1481451901202731099,
+      "create_voice_channel": 1481451946463465595,
+      "rooms_category": 1481451845506306139
     }
   }
 }
+
+
